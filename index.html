@@ -94,28 +94,66 @@ function idDoLink(t) {
 }
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
-// Lê a aba _app (célula A1 com JSON) pela consulta do Google (JSONP: funciona sem servidor)
-function buscar(id) {
+// Consulta do Google (JSONP: funciona sem servidor). Devolve as linhas da aba como listas de textos.
+function gviz(id, aba, faixa) {
   return new Promise((ok, falha) => {
-    const cb = "__rotina" + Date.now();
+    const cb = "__rotina" + Date.now() + Math.floor(Math.random() * 1000);
     const s = document.createElement("script");
     const t = setTimeout(() => { limpar(); falha(new Error("tempo esgotado")); }, 20000);
     function limpar() { clearTimeout(t); delete window[cb]; s.remove(); }
     window[cb] = (r) => {
       limpar();
-      try {
-        if (r.status === "error") throw new Error((r.errors && r.errors[0] && r.errors[0].detailed_message) || "erro do Google");
-        const rows = r.table.rows || [];
-        let txt = rows[0] && rows[0].c && rows[0].c[0] && rows[0].c[0].v;
-        if (!txt && r.table.cols && r.table.cols[0]) txt = r.table.cols[0].label;   // o Google às vezes usa A1 como título
-        ok(JSON.parse(txt));
-      } catch (e) { falha(e); }
+      if (r.status === "error") {
+        falha(new Error((r.errors && r.errors[0] && (r.errors[0].detailed_message || r.errors[0].message)) || "erro do Google"));
+        return;
+      }
+      const cols = (r.table.cols || []).map(c => c.label || "");
+      const rows = (r.table.rows || []).map(l => (l.c || []).map(c => c ? String(c.f ?? c.v ?? "") : ""));
+      ok(cols.some(Boolean) ? [cols].concat(rows) : rows);   // o Google às vezes usa a 1ª linha como título
     };
     s.onerror = () => { limpar(); falha(new Error("sem acesso à planilha")); };
-    s.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?sheet=_app&range=A1&headers=0` +
-            `&tqx=responseHandler:${cb}&t=${Date.now()}`;
+    s.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?sheet=${encodeURIComponent(aba)}` +
+            `&range=${faixa}&headers=0&tqx=responseHandler:${cb}&t=${Date.now()}`;
     document.body.appendChild(s);
   });
+}
+
+const SIT = [["✅", "OK"], ["❌", "FALHOU"], ["⏳", "rodando"], ["🕒", "aguardando"], ["⏸", "desligada"]];
+function sitDe(t) { const x = SIT.find(([ic]) => String(t).startsWith(ic)); return x ? x[1] : String(t); }
+
+// Monta os dados a partir das abas Status e Histórico (quando a aba _app ainda não existe)
+async function lerAbas(id) {
+  const st = await gviz(id, "Status", "A1:E80");
+  const resumo = (st[0] || [])[0] || "";
+  const info = ((st[1] || [])[0] || "") + " " + ((st[1] || [])[4] || "");
+  const mi = info.match(/In[ií]cio (\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/);
+  const inicio = mi ? `${mi[3]}-${mi[2]}-${mi[1]}T${mi[4]}:${mi[5]}:00` : "";
+  const mf = info.match(/fim (\d{2}):(\d{2})/);
+  const fim = mi && mf ? `${mi[3]}-${mi[2]}-${mi[1]}T${mf[1]}:${mf[2]}:00` : "";
+  const ma = info.match(/Atualizado (\d{2})\/(\d{2}) (\d{2}):(\d{2})/);
+  const gerado = ma ? `${mi ? mi[3] : new Date().getFullYear()}-${ma[2]}-${ma[1]}T${ma[3]}:${ma[4]}:00` : "";
+  const ih = st.findIndex(l => l[0] === "Automação");
+  const itens = [];
+  for (const l of st.slice(ih + 1)) {
+    if (ih < 0 || !l[0]) break;
+    itens.push({ nome: l[0], sit: sitDe(l[1]), ini: l[2] || "", fim: l[3] || "", dur: "", det: l[4] || "" });
+  }
+  let historico = [];
+  try { historico = (await gviz(id, "Histórico", "A1:E2000")).filter(l => /^\d{4}-\d{2}-\d{2}$/.test(l[0])); } catch (e) {}
+  const estado = resumo.startsWith("❌") ? "falha" : resumo.startsWith("✅") ? "ok" : "rodando";
+  return { resumo, inicio, fim, gerado, estado, internet: /internet: ([^·]+)/.test(info) ? RegExp.$1.trim() : "",
+           itens, historico };
+}
+
+async function buscar(id) {
+  try {                                         // 1º a aba _app (JSON completo)
+    const l = await gviz(id, "_app", "A1");
+    const txt = (l[0] || [])[0] || "";
+    if (txt.trim().startsWith("{")) return JSON.parse(txt);
+  } catch (e) {
+    if (/OAuth|not publicly|sem acesso/i.test(e.message)) throw e;
+  }
+  return lerAbas(id);                           // sem a aba _app: lê as abas Status e Histórico
 }
 
 async function atualizar() {
