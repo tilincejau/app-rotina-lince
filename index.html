@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rotina Lince</title>
+<meta name="theme-color" content="#154026">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rotina Lince">
+<style>
+  :root {
+    --verde: #154026; --dourado: #C49F45; --fundo: #F4F2EC; --card: #FFFFFF; --texto: #1d241f; --sub: #6b736d;
+    --ok: #1e7d3a; --ok-bg: #e3f2e7; --erro: #b3261e; --erro-bg: #fbe4e2; --run: #1f5fa8; --run-bg: #e3edf9;
+    --wait: #8a6d1a; --wait-bg: #fbf3dc; --off: #6b736d; --off-bg: #eeeeee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fundo: #101411; --card: #1a201c; --texto: #e8ece9; --sub: #9aa39d;
+      --ok-bg: #16301f; --erro-bg: #3a1714; --run-bg: #14263d; --wait-bg: #33290f; --off-bg: #262a27; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--fundo);
+    color: var(--texto); -webkit-tap-highlight-color: transparent; }
+  header { background: var(--verde); color: #fff; padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+    display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 2;
+    border-bottom: 3px solid var(--dourado); }
+  header img { height: 34px; background: #fff; border-radius: 8px; padding: 3px; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; font-weight: 700; }
+  header button { background: transparent; border: 1px solid rgba(255,255,255,.4); color: #fff; border-radius: 10px;
+    padding: 8px 12px; font-size: 15px; }
+  main { padding: 14px 16px 90px; max-width: 640px; margin: 0 auto; }
+  .resumo { border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .resumo .t { font-size: 18px; font-weight: 700; }
+  .resumo .s { font-size: 13px; color: var(--sub); margin-top: 6px; }
+  .aviso { background: var(--wait-bg); color: var(--wait); border-radius: 12px; padding: 10px 12px; font-size: 14px;
+    margin-bottom: 12px; font-weight: 600; }
+  .item { background: var(--card); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; display: flex;
+    align-items: center; gap: 12px; border-left: 6px solid var(--off); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .item .ic { font-size: 22px; width: 28px; text-align: center; }
+  .item .n { font-weight: 700; font-size: 16px; }
+  .item .d { font-size: 13px; color: var(--sub); margin-top: 2px; }
+  .item .h { margin-left: auto; text-align: right; font-size: 13px; color: var(--sub); white-space: nowrap; }
+  .OK { border-left-color: var(--ok); } .FALHOU { border-left-color: var(--erro); background: var(--erro-bg); }
+  .rodando { border-left-color: var(--run); } .aguardando { border-left-color: var(--wait); }
+  .desligada { opacity: .65; }
+  .r-ok { background: var(--ok-bg); } .r-falha { background: var(--erro-bg); } .r-rodando { background: var(--run-bg); }
+  nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); display: flex;
+    border-top: 1px solid rgba(0,0,0,.08); padding-bottom: env(safe-area-inset-bottom); z-index: 2; }
+  nav button { flex: 1; background: none; border: 0; padding: 12px 0 14px; font-size: 14px; color: var(--sub); }
+  nav button.on { color: var(--verde); font-weight: 700; box-shadow: inset 0 3px 0 var(--dourado); }
+  @media (prefers-color-scheme: dark) { nav button.on { color: var(--dourado); } }
+  .grade { overflow-x: auto; background: var(--card); border-radius: 14px; padding: 8px; }
+  table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  th, td { padding: 6px 6px; text-align: center; white-space: nowrap; }
+  th { color: var(--sub); font-weight: 600; }
+  td:first-child, th:first-child { text-align: left; position: sticky; left: 0; background: var(--card); font-weight: 600; }
+  .cfg { background: var(--card); border-radius: 14px; padding: 16px; }
+  .cfg label { font-weight: 700; display: block; margin-bottom: 8px; }
+  .cfg input { width: 100%; font-size: 15px; padding: 12px; border-radius: 10px; border: 1px solid #c9cfca;
+    background: var(--fundo); color: var(--texto); }
+  .cfg .b { margin-top: 12px; width: 100%; background: var(--verde); color: #fff; border: 0; border-radius: 10px;
+    padding: 13px; font-size: 16px; font-weight: 700; }
+  .cfg p { font-size: 13px; color: var(--sub); line-height: 1.45; }
+  .erro { color: var(--erro); font-size: 14px; margin: 10px 0; }
+  .vazio { color: var(--sub); text-align: center; padding: 30px 0; }
+</style>
+</head>
+<body>
+<header>
+  <img src="icon-192.png" alt="">
+  <h1>Rotina Lince</h1>
+  <button id="btAtualizar" aria-label="Atualizar">↻</button>
+</header>
+<main id="tela"></main>
+<nav>
+  <button data-aba="status" class="on">Hoje</button>
+  <button data-aba="historico">Histórico</button>
+  <button data-aba="config">Configurar</button>
+</nav>
+<script>
+"use strict";
+const CHAVE = "rotina_lince_planilha";
+const ICONE = { OK: "✅", FALHOU: "❌", rodando: "⏳", aguardando: "🕒", desligada: "⏸" };
+const ROTULO = { OK: "OK", FALHOU: "Falhou", rodando: "Rodando", aguardando: "Aguardando", desligada: "Desligada" };
+let aba = "status", dados = null, erro = "", carregando = false;
+
+function lerId() { try { return localStorage.getItem(CHAVE) || ""; } catch (e) { return ""; } }
+function gravarId(v) { try { localStorage.setItem(CHAVE, v); } catch (e) {} }
+function idDoLink(t) {
+  const m = String(t || "").match(/\/d\/([A-Za-z0-9_-]{20,})/) || String(t || "").match(/([A-Za-z0-9_-]{30,})/);
+  return m ? m[1] : "";
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// Lê a aba _app (célula A1 com JSON) pela consulta do Google (JSONP: funciona sem servidor)
+function buscar(id) {
+  return new Promise((ok, falha) => {
+    const cb = "__rotina" + Date.now();
+    const s = document.createElement("script");
+    const t = setTimeout(() => { limpar(); falha(new Error("tempo esgotado")); }, 20000);
+    function limpar() { clearTimeout(t); delete window[cb]; s.remove(); }
+    window[cb] = (r) => {
+      limpar();
+      try {
+        if (r.status === "error") throw new Error((r.errors && r.errors[0] && r.errors[0].detailed_message) || "erro do Google");
+        const rows = r.table.rows || [];
+        let txt = rows[0] && rows[0].c && rows[0].c[0] && rows[0].c[0].v;
+        if (!txt && r.table.cols && r.table.cols[0]) txt = r.table.cols[0].label;   // o Google às vezes usa A1 como título
+        ok(JSON.parse(txt));
+      } catch (e) { falha(e); }
+    };
+    s.onerror = () => { limpar(); falha(new Error("sem acesso à planilha")); };
+    s.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?sheet=_app&range=A1&headers=0` +
+            `&tqx=responseHandler:${cb}&t=${Date.now()}`;
+    document.body.appendChild(s);
+  });
+}
+
+async function atualizar() {
+  const id = lerId();
+  if (!id) { aba = "config"; desenhar(); return; }
+  carregando = true; desenhar();
+  try {
+    dados = await buscar(id); erro = "";
+    try { localStorage.setItem(CHAVE + "_cache", JSON.stringify(dados)); } catch (e) {}
+  } catch (e) {
+    erro = "Não consegui ler a planilha (" + e.message + "). Confira a internet e se a planilha está como " +
+           "'Qualquer pessoa com o link: Leitor'.";
+  }
+  carregando = false; desenhar();
+}
+
+function dataBR(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " +
+         d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+function ehHoje(iso) { if (!iso) return false; const d = new Date(iso), h = new Date();
+  return d.getFullYear() === h.getFullYear() && d.getMonth() === h.getMonth() && d.getDate() === h.getDate(); }
+
+function telaStatus() {
+  if (!dados) return carregando ? `<div class="vazio">Carregando…</div>` : `<div class="vazio">Sem dados ainda.</div>`;
+  const cls = { ok: "r-ok", falha: "r-falha", rodando: "r-rodando" }[dados.estado] || "";
+  let h = "";
+  if (!ehHoje(dados.inicio)) h += `<div class="aviso">⚠️ A rotina ainda não rodou hoje (última: ${esc(dataBR(dados.inicio))}). PC desligado ou sem internet?</div>`;
+  if (dados.internet && dados.internet !== "OK") h += `<div class="aviso">🌐 Internet: ${esc(dados.internet)}</div>`;
+  h += `<div class="resumo ${cls}"><div class="t">${esc(dados.resumo)}</div>
+        <div class="s">Início ${esc(dataBR(dados.inicio))}${dados.fim ? " · fim " + esc(dataBR(dados.fim).slice(-5)) : " · ainda rodando"}
+        · atualizado ${esc(dataBR(dados.gerado))}</div></div>`;
+  for (const it of dados.itens || []) {
+    const det = [it.dur, it.det].filter(Boolean).join(" · ");
+    const hora = it.ini ? it.ini + (it.fim ? "–" + it.fim : "") : "";
+    h += `<div class="item ${esc(it.sit)}"><div class="ic">${ICONE[it.sit] || "•"}</div>
+          <div><div class="n">${esc(it.nome)}</div><div class="d">${esc(ROTULO[it.sit] || it.sit)}${det ? " · " + esc(det) : ""}</div></div>
+          <div class="h">${esc(hora)}</div></div>`;
+  }
+  return h;
+}
+
+function telaHistorico() {
+  const hist = (dados && dados.historico) || [];
+  if (!hist.length) return `<div class="vazio">O histórico aparece depois que a rotina terminar pela 1ª vez.</div>`;
+  const dias = [...new Set(hist.map(r => r[0]))].sort().reverse().slice(0, 14);
+  const nomes = [...new Set(hist.map(r => r[1]))];
+  const mapa = {};
+  hist.forEach(r => { mapa[r[0] + "|" + r[1]] = r; });
+  let h = `<div class="grade"><table><tr><th>Automação</th>` +
+          dias.map(d => `<th>${d.slice(8, 10)}/${d.slice(5, 7)}</th>`).join("") + `</tr>`;
+  for (const n of nomes) {
+    h += `<tr><td>${esc(n)}</td>` + dias.map(d => {
+      const r = mapa[d + "|" + n];
+      if (!r) return "<td>·</td>";
+      const ic = (r[2] || "").split(" ")[0];
+      return `<td title="${esc([r[2], r[3], r[4]].filter(Boolean).join(" · "))}">${esc(ic)}</td>`;
+    }).join("") + `</tr>`;
+  }
+  h += `</table></div><p style="font-size:13px;color:var(--sub);margin-top:10px">✅ OK · ❌ falhou · ⏸ desligada · últimos 14 dias</p>`;
+  const falhas = hist.filter(r => (r[2] || "").startsWith("❌")).slice(0, 15);
+  if (falhas.length) {
+    h += `<h3 style="font-size:15px;margin:18px 0 8px">Últimas falhas</h3>`;
+    h += falhas.map(r => `<div class="item FALHOU"><div class="ic">❌</div><div><div class="n">${esc(r[1])}</div>
+          <div class="d">${esc(r[0].split("-").reverse().join("/"))}${r[4] ? " · " + esc(r[4]) : ""}</div></div></div>`).join("");
+  }
+  return h;
+}
+
+function telaConfig() {
+  return `<div class="cfg">
+    <label for="link">Link da planilha "Status rotina"</label>
+    <input id="link" placeholder="https://docs.google.com/spreadsheets/d/..." value="${esc(lerId())}">
+    <button class="b" id="btSalvar">Salvar</button>
+    <p>1. No Google Sheets, abra a planilha do status → Compartilhar → Acesso geral:
+       <b>Qualquer pessoa com o link</b> · <b>Leitor</b>.<br>
+       2. Copie o link e cole aqui. Ele fica guardado só neste celular.<br>
+       3. Para instalar: no Chrome, menu ⋮ → <b>Adicionar à tela inicial</b> (no iPhone: Safari → Compartilhar →
+       Adicionar à Tela de Início).</p>
+  </div>`;
+}
+
+function desenhar() {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.aba === aba));
+  const t = document.getElementById("tela");
+  let h = erro && aba !== "config" ? `<div class="erro">${esc(erro)}</div>` : "";
+  h += aba === "status" ? telaStatus() : aba === "historico" ? telaHistorico() : telaConfig();
+  t.innerHTML = h;
+  const bs = document.getElementById("btSalvar");
+  if (bs) bs.onclick = () => {
+    const id = idDoLink(document.getElementById("link").value);
+    if (!id) { alert("Link não reconhecido. Cole o link inteiro da planilha."); return; }
+    gravarId(id); aba = "status"; atualizar();
+  };
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { aba = b.dataset.aba; desenhar(); });
+document.getElementById("btAtualizar").onclick = atualizar;
+document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizar(); });
+setInterval(() => { if (!document.hidden) atualizar(); }, 60000);
+try { const c = localStorage.getItem(CHAVE + "_cache"); if (c) dados = JSON.parse(c); } catch (e) {}
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+desenhar();
+atualizar();
+</script>
+</body>
+</html>
