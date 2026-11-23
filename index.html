@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#154026">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Rotina Lince">
 <style>
@@ -266,7 +266,14 @@ function telaStatus() {
 function telaAcao() {
   const c = comandos || {};
   let s = "";
-  if (c.visto) s += `PC visto ${esc(c.visto.quando)}${c.visto.sit ? " (" + esc(c.visto.sit) + ")" : ""}. `;
+  if (c.visto) {
+    const m = String(c.visto.quando).match(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/);
+    const quando = m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]) : null;
+    const min = quando ? (Date.now() - quando.getTime()) / 60000 : 0;
+    if (min > 6) s += `<b style="color:var(--wait)">⚠️ PC sem sinal desde ${esc(c.visto.quando)}: hibernando, desligado ou ` +
+                      `sem usuário logado. O pedido fica aguardando e só roda quando o PC voltar (vale por 3 h).</b><br>`;
+    else s += `🟢 PC ligado (visto ${esc(c.visto.quando.slice(-5))}${c.visto.sit ? ", " + esc(c.visto.sit) : ""}). `;
+  }
   if (c.ultimo) s += `Último pedido ${esc(c.ultimo[0])}: <b>${esc(c.ultimo[2])}</b>${c.ultimo[4] ? " · " + esc(c.ultimo[4]) : ""}.`;
   if (msgPedido) s = `<b>${esc(msgPedido)}</b><br>` + s;
   if (!lerCfg(CH_URL)) s = "Para iniciar pelo celular, configure o endereço do comando na aba Configurar.";
