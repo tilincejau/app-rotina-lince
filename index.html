@@ -65,6 +65,17 @@
   .cfg p { font-size: 13px; color: var(--sub); line-height: 1.45; }
   .erro { color: var(--erro); font-size: 14px; margin: 10px 0; }
   .vazio { color: var(--sub); text-align: center; padding: 30px 0; }
+  header button.gira { animation: gira 0.9s linear infinite; opacity: .7; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+  .toast { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: #222; color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 14px; z-index: 5;
+    max-width: 90%; text-align: center; transition: opacity .3s; }
+  .acao { background: var(--card); border-radius: 14px; padding: 14px; margin: 14px 0 8px; }
+  .acao .b { width: 100%; background: var(--verde); color: #fff; border: 0; border-radius: 10px; padding: 13px;
+    font-size: 16px; font-weight: 700; }
+  .acao .b[disabled] { opacity: .5; }
+  .acao .s { font-size: 13px; color: var(--sub); margin-top: 8px; line-height: 1.4; }
+  .lida { font-size: 12px; color: var(--sub); text-align: center; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -82,12 +93,55 @@
 <script>
 "use strict";
 const CHAVE = "rotina_lince_planilha";
+const CH_URL = "rotina_lince_comando_url", CH_PIN = "rotina_lince_pin";
+let comandos = null, lidaEm = null, enviando = false;
 const ICONE = { OK: "✅", FALHOU: "❌", rodando: "⏳", aguardando: "🕒", desligada: "⏸" };
 const ROTULO = { OK: "OK", FALHOU: "Falhou", rodando: "Rodando", aguardando: "Aguardando", desligada: "Desligada" };
 let aba = "status", dados = null, erro = "", carregando = false;
 
 function lerId() { try { return localStorage.getItem(CHAVE) || ""; } catch (e) { return ""; } }
 function gravarId(v) { try { localStorage.setItem(CHAVE, v); } catch (e) {} }
+function lerCfg(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+function gravarCfg(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function toast(msg) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 400); }, 3200);
+}
+// Chamada ao Apps Script (JSONP: funciona do celular sem bloqueio de CORS)
+function jsonp(url, params) {
+  return new Promise((ok, falha) => {
+    const cb = "__cmd" + Date.now() + Math.floor(Math.random() * 1000);
+    const s = document.createElement("script");
+    const t = setTimeout(() => { limpar(); falha(new Error("sem resposta")); }, 25000);
+    function limpar() { clearTimeout(t); delete window[cb]; s.remove(); }
+    window[cb] = r => { limpar(); ok(r); };
+    s.onerror = () => { limpar(); falha(new Error("endereço do comando não respondeu")); };
+    const q = new URLSearchParams(Object.assign({}, params, { callback: cb, t: Date.now() }));
+    s.src = url + (url.includes("?") ? "&" : "?") + q.toString();
+    document.body.appendChild(s);
+  });
+}
+async function lerComandos(id) {
+  try {
+    const l = await gviz(id, "Comandos", "A1:J300");
+    const cab = l[0] || [];
+    const visto = cab[7] === "PC visto" ? { quando: cab[8] || "", sit: cab[9] || "" } : null;
+    const peds = l.slice(1).filter(x => x[0] && x[2]);
+    return { visto, ultimo: peds.length ? peds[peds.length - 1] : null };
+  } catch (e) { return null; }
+}
+async function iniciarRotina() {
+  const url = lerCfg(CH_URL), pin = lerCfg(CH_PIN);
+  if (!url) { aba = "config"; desenhar(); toast("Configure o endereço do comando e o PIN"); return; }
+  if (!confirm("Iniciar a rotina de downloads agora no PC?\n(Pelo app o PC NÃO hiberna no fim.)")) return;
+  enviando = true; desenhar();
+  try {
+    const r = await jsonp(url, { pin, acao: "rotina" });
+    toast(r.msg || (r.ok ? "Pedido enviado" : "Não deu certo"));
+  } catch (e) { toast("Não consegui enviar: " + e.message); }
+  enviando = false;
+  await atualizar(true);
+}
 function idDoLink(t) {
   const m = String(t || "").match(/\/d\/([A-Za-z0-9_-]{20,})/) || String(t || "").match(/([A-Za-z0-9_-]{30,})/);
   return m ? m[1] : "";
@@ -156,17 +210,24 @@ async function buscar(id) {
   return lerAbas(id);                           // sem a aba _app: lê as abas Status e Histórico
 }
 
-async function atualizar() {
+async function atualizar(manual) {
   const id = lerId();
   if (!id) { aba = "config"; desenhar(); return; }
+  if (carregando) return;
   carregando = true; desenhar();
+  const bt = document.getElementById("btAtualizar");
+  bt.classList.add("gira"); bt.disabled = true;
   try {
-    dados = await buscar(id); erro = "";
+    const [d, c] = await Promise.all([buscar(id), lerComandos(id)]);
+    dados = d; comandos = c; erro = ""; lidaEm = new Date();
+    if (manual === true) toast("Atualizado às " + lidaEm.toLocaleTimeString("pt-BR"));
     try { localStorage.setItem(CHAVE + "_cache", JSON.stringify(dados)); } catch (e) {}
   } catch (e) {
     erro = "Não consegui ler a planilha (" + e.message + "). Confira a internet e se a planilha está como " +
            "'Qualquer pessoa com o link: Leitor'.";
+    if (manual === true) toast("Falhou: " + e.message);
   }
+  bt.classList.remove("gira"); bt.disabled = false;
   carregando = false; desenhar();
 }
 
@@ -188,6 +249,7 @@ function telaStatus() {
   h += `<div class="resumo ${cls}"><div class="t">${esc(dados.resumo)}</div>
         <div class="s">Início ${esc(dataBR(dados.inicio))}${dados.fim ? " · fim " + esc(dataBR(dados.fim).slice(-5)) : " · ainda rodando"}
         · atualizado ${esc(dataBR(dados.gerado))}</div></div>`;
+  h += telaAcao();
   for (const it of dados.itens || []) {
     const det = [it.dur, it.det].filter(Boolean).join(" · ");
     const hora = it.ini ? it.ini + (it.fim ? "–" + it.fim : "") : "";
@@ -195,7 +257,20 @@ function telaStatus() {
           <div><div class="n">${esc(it.nome)}</div><div class="d">${esc(ROTULO[it.sit] || it.sit)}${det ? " · " + esc(det) : ""}</div></div>
           <div class="h">${esc(hora)}</div></div>`;
   }
+  if (lidaEm) h += `<div class="lida">Lido da planilha às ${esc(lidaEm.toLocaleTimeString("pt-BR"))}</div>`;
   return h;
+}
+
+function telaAcao() {
+  const c = comandos || {};
+  let s = "";
+  if (c.visto) s += `PC visto ${esc(c.visto.quando)}${c.visto.sit ? " (" + esc(c.visto.sit) + ")" : ""}. `;
+  if (c.ultimo) s += `Último pedido ${esc(c.ultimo[0])}: <b>${esc(c.ultimo[2])}</b>${c.ultimo[4] ? " · " + esc(c.ultimo[4]) : ""}.`;
+  if (!lerCfg(CH_URL)) s = "Para iniciar pelo celular, configure o endereço do comando na aba Configurar.";
+  const rod = dados && dados.estado === "rodando" && !dados.fim;
+  return `<div class="acao"><button class="b" id="btIniciar" ${enviando || rod ? "disabled" : ""}>
+          ${enviando ? "Enviando…" : rod ? "⏳ Rotina rodando" : "▶ Iniciar rotina agora"}</button>
+          <div class="s">${s}</div></div>`;
 }
 
 function telaHistorico() {
@@ -229,12 +304,18 @@ function telaConfig() {
   return `<div class="cfg">
     <label for="link">Link da planilha "Status rotina"</label>
     <input id="link" placeholder="https://docs.google.com/spreadsheets/d/..." value="${esc(lerId())}">
+    <label for="url" style="margin-top:16px">Endereço do comando (Apps Script, termina em /exec)</label>
+    <input id="url" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(lerCfg(CH_URL))}">
+    <label for="pin" style="margin-top:16px">PIN</label>
+    <input id="pin" type="password" inputmode="numeric" value="${esc(lerCfg(CH_PIN))}">
     <button class="b" id="btSalvar">Salvar</button>
     <p>1. No Google Sheets, abra a planilha do status → Compartilhar → Acesso geral:
        <b>Qualquer pessoa com o link</b> · <b>Leitor</b>.<br>
        2. Copie o link e cole aqui. Ele fica guardado só neste celular.<br>
        3. Para instalar: no Chrome, menu ⋮ → <b>Adicionar à tela inicial</b> (no iPhone: Safari → Compartilhar →
-       Adicionar à Tela de Início).</p>
+       Adicionar à Tela de Início).<br>
+       4. Botão "Iniciar rotina": cole o endereço do Apps Script e o PIN (veja o LEIA-ME do vigia). O PC precisa
+       estar ligado e com o usuário logado.</p>
   </div>`;
 }
 
@@ -248,12 +329,17 @@ function desenhar() {
   if (bs) bs.onclick = () => {
     const id = idDoLink(document.getElementById("link").value);
     if (!id) { alert("Link não reconhecido. Cole o link inteiro da planilha."); return; }
-    gravarId(id); aba = "status"; atualizar();
+    gravarId(id);
+    gravarCfg(CH_URL, document.getElementById("url").value.trim());
+    gravarCfg(CH_PIN, document.getElementById("pin").value.trim());
+    aba = "status"; atualizar(true);
   };
+  const bi = document.getElementById("btIniciar");
+  if (bi) bi.onclick = iniciarRotina;
 }
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { aba = b.dataset.aba; desenhar(); });
-document.getElementById("btAtualizar").onclick = atualizar;
+document.getElementById("btAtualizar").onclick = () => atualizar(true);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizar(); });
 setInterval(() => { if (!document.hidden) atualizar(); }, 60000);
 try { const c = localStorage.getItem(CHAVE + "_cache"); if (c) dados = JSON.parse(c); } catch (e) {}
