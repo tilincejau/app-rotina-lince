@@ -94,7 +94,7 @@
 "use strict";
 const CHAVE = "rotina_lince_planilha";
 const CH_URL = "rotina_lince_comando_url", CH_PIN = "rotina_lince_pin";
-let comandos = null, lidaEm = null, enviando = false;
+let comandos = null, lidaEm = null, enviando = false, msgPedido = "";
 const ICONE = { OK: "✅", FALHOU: "❌", rodando: "⏳", aguardando: "🕒", desligada: "⏸" };
 const ROTULO = { OK: "OK", FALHOU: "Falhou", rodando: "Rodando", aguardando: "Aguardando", desligada: "Desligada" };
 let aba = "status", dados = null, erro = "", carregando = false;
@@ -104,6 +104,7 @@ function gravarId(v) { try { localStorage.setItem(CHAVE, v); } catch (e) {} }
 function lerCfg(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
 function gravarCfg(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 function toast(msg) {
+  document.querySelectorAll(".toast").forEach(x => x.remove());
   const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 400); }, 3200);
 }
@@ -136,11 +137,12 @@ async function iniciarRotina() {
   if (!confirm("Iniciar a rotina de downloads agora no PC?\n(Pelo app o PC NÃO hiberna no fim.)")) return;
   enviando = true; desenhar();
   try {
-    const r = await jsonp(url, { pin, acao: "rotina" });
-    toast(r.msg || (r.ok ? "Pedido enviado" : "Não deu certo"));
-  } catch (e) { toast("Não consegui enviar: " + e.message); }
+    const r = await jsonp(url, { pin, acao: "rotina", planilha: lerId() });
+    toast((r.ok ? "" : "Não deu certo: ") + (r.msg || (r.ok ? "Pedido enviado" : "erro no Apps Script")));
+    msgPedido = (r.ok ? "✅ " : "❌ ") + (r.msg || "");
+  } catch (e) { toast("Não consegui enviar: " + e.message); msgPedido = "❌ Não consegui enviar: " + e.message; }
   enviando = false;
-  await atualizar(true);
+  await atualizar(false);
 }
 function idDoLink(t) {
   const m = String(t || "").match(/\/d\/([A-Za-z0-9_-]{20,})/) || String(t || "").match(/([A-Za-z0-9_-]{30,})/);
@@ -266,6 +268,7 @@ function telaAcao() {
   let s = "";
   if (c.visto) s += `PC visto ${esc(c.visto.quando)}${c.visto.sit ? " (" + esc(c.visto.sit) + ")" : ""}. `;
   if (c.ultimo) s += `Último pedido ${esc(c.ultimo[0])}: <b>${esc(c.ultimo[2])}</b>${c.ultimo[4] ? " · " + esc(c.ultimo[4]) : ""}.`;
+  if (msgPedido) s = `<b>${esc(msgPedido)}</b><br>` + s;
   if (!lerCfg(CH_URL)) s = "Para iniciar pelo celular, configure o endereço do comando na aba Configurar.";
   const rod = dados && dados.estado === "rodando" && !dados.fim;
   return `<div class="acao"><button class="b" id="btIniciar" ${enviando || rod ? "disabled" : ""}>
