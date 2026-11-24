@@ -274,7 +274,13 @@ function telaAcao() {
                       `sem usuário logado. O pedido fica aguardando e só roda quando o PC voltar (vale por 3 h).</b><br>`;
     else s += `🟢 PC ligado (visto ${esc(c.visto.quando.slice(-5))}${c.visto.sit ? ", " + esc(c.visto.sit) : ""}). `;
   }
-  if (c.ultimo) s += `Último pedido ${esc(c.ultimo[0])}: <b>${esc(c.ultimo[2])}</b>${c.ultimo[4] ? " · " + esc(c.ultimo[4]) : ""}.`;
+  if (c.ultimo) {                                   // pedido feito pelo botão (data/hora em que foi PEDIDO)
+    const mp = String(c.ultimo[0]).match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+    const hoje = new Date(), dia = mp ? new Date(+mp[3], +mp[2] - 1, +mp[1]) : null;
+    const quando = !mp ? esc(c.ultimo[0]) :
+      (dia.toDateString() === hoje.toDateString() ? "hoje" : `${mp[1]}/${mp[2]}`) + ` às ${mp[4]}:${mp[5]}`;
+    s += `<br>Último pedido pelo botão: ${quando} · <b>${esc(c.ultimo[2])}</b>.`;
+  }
   if (msgPedido) s = `<b>${esc(msgPedido)}</b><br>` + s;
   if (!lerCfg(CH_URL)) s = "Para iniciar pelo celular, configure o endereço do comando na aba Configurar.";
   const rod = dados && dados.estado === "rodando" && !dados.fim;
